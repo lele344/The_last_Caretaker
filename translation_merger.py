@@ -1,610 +1,732 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Translation Merger Tool
------------------------
-Strumento per unire traduzioni esistenti con nuovi file CSV di localizzazione.
-Confronta KEY e SOURCE per identificare traduzioni esistenti da mantenere
-e righe modificate o non tradotte.
+Translation Editor Pro v2.0 - Modern UI Edition
+================================================
+Editor professionale con interfaccia moderna e pulsanti arrotondati
 """
 
 import csv
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-from typing import Dict, List, Tuple
-import threading
+from typing import Dict, List
+from datetime import datetime
+from collections import defaultdict
+import copy
 
 
-# ==================== LOCALIZATIONS ====================
+# ==================== TRANSLATIONS ====================
 TRANSLATIONS = {
     'en': {
-        'title': 'Translation Merger Tool',
-        'description': 'Select the source CSV file (English) and one or more files with translations.\nThe script will compare KEY and SOURCE to merge existing translations.',
-        'source_file': 'Source File (EN):',
-        'no_file': 'No file selected',
-        'select_file': 'Select File',
-        'translation_files': 'Translation Files:',
-        'add_file': 'Add File',
-        'remove_selected': 'Remove Selected',
-        'remove_all': 'Remove All',
-        'output_file': 'Output File:',
-        'auto_generated': 'Will be generated automatically',
-        'choose_output': 'Choose Output',
-        'execute_merge': 'EXECUTE MERGE',
-        'results': 'Results:',
-        'error': 'Error',
-        'select_source_error': 'Select the source file!',
-        'select_translation_error': 'Add at least one translation file!',
-        'success': 'Success',
-        'merge_completed': 'Merge completed!',
-        'translated': 'Translated',
-        'file_saved': 'File saved',
-        'select_source_title': 'Select Source File (EN)',
-        'select_translation_title': 'Select Translation File',
-        'select_output_title': 'Select Output File',
-        'loading_source': 'Loading source file...',
-        'loading_translations': 'Loading translations',
-        'processing': 'Processing',
-        'completed': 'Completed!',
-        'merge_completed_header': 'MERGE COMPLETED!',
-        'output_file_label': 'Output File:',
-        'statistics': 'STATISTICS:',
-        'total_rows': 'Total rows:',
-        'translated_check': 'Translated (✓):',
-        'not_translated': 'Not translated (✗):',
-        'source_modified': 'Source modified (⚠):',
-        'legend': 'LEGEND:',
-        'legend_translated': 'Existing translation applied (KEY and SOURCE match)',
-        'legend_not_translated': 'No translation found (needs translation)',
-        'legend_modified': 'SOURCE modified compared to existing translation\n      (requires manual verification/update)',
-        'file_saved_success': 'The file has been saved successfully!\n   You can open it to verify and complete missing translations.',
-        'language': 'Language:',
+        'title': 'Translation Editor Pro',
+        'menu_file': 'File', 'menu_load_base': 'Load Base File', 'menu_add_trans': 'Add Translation File',
+        'menu_save': 'Save Final Output', 'menu_exit': 'Exit', 'menu_view': 'View',
+        'menu_theme': 'Toggle Theme', 'menu_lang': 'Language', 'menu_help': 'Help', 'menu_about': 'About',
+        'base_file': '📄 Base File', 'no_file': 'No file loaded', 'load_base_btn': '📂 Load Base File',
+        'merge_stages': '📚 Merge Stages', 'add_trans_btn': '➕ Add Translation',
+        'execute_merge': '🔄 Execute Merge', 'undo_last': '↩️ Undo', 'clear_stages': '🗑️ Clear',
+        'save_output': '💾 SAVE OUTPUT', 'search': '🔍 Search:', 'filter_added': '🟢 Added',
+        'filter_removed': '🔴 Removed', 'filter_modified': '🟡 Modified', 'filter_all': '⚪ All',
+        'col_status': 'Status', 'col_key': 'Key', 'col_source': 'Source (EN)', 'col_translation': 'Translation',
+        'ready': 'Ready', 'loaded_rows': 'Loaded: {0} rows', 'added_stage': 'Added: {0}',
+        'merge_success': 'Merged {0} file(s)!', 'saved_success': 'File saved!\n{0}',
+        'no_data': 'No data to save!', 'load_base_first': 'Load base file first!',
+        'add_one_file': 'Add at least one translation file!', 'no_history': 'No history to undo!',
+        'undo_success': 'Undo successful', 'stages_cleared': 'Stages cleared',
+        'duplicates_found': 'Duplicates Found', 'duplicates_msg': 'Found {0} duplicates.\nReview them in the table.',
+        'error': 'Error', 'warning': 'Warning', 'success': 'Success', 'info': 'Info',
+        'about_text': 'Translation Editor Pro v2.0\n\nProfessional CSV translation manager\n\n• Modern UI\n• Interactive table\n• Multi-stage merge\n• Change tracking\n• Multi-language',
+        'select_base': 'Select Base CSV', 'select_trans': 'Select Translation CSV', 'save_file': 'Save Output',
     },
     'it': {
-        'title': 'Translation Merger Tool',
-        'description': 'Seleziona il file CSV sorgente (inglese) e uno o più file con traduzioni.\nLo script confronterà KEY e SOURCE per unire le traduzioni esistenti.',
-        'source_file': 'File Sorgente (EN):',
-        'no_file': 'Nessun file selezionato',
-        'select_file': 'Seleziona File',
-        'translation_files': 'File Traduzioni:',
-        'add_file': 'Aggiungi File',
-        'remove_selected': 'Rimuovi Selezionato',
-        'remove_all': 'Rimuovi Tutti',
-        'output_file': 'File Output:',
-        'auto_generated': 'Verrà generato automaticamente',
-        'choose_output': 'Scegli Output',
-        'execute_merge': 'ESEGUI MERGE',
-        'results': 'Risultati:',
-        'error': 'Errore',
-        'select_source_error': 'Seleziona il file sorgente!',
-        'select_translation_error': 'Aggiungi almeno un file di traduzione!',
-        'success': 'Successo',
-        'merge_completed': 'Merge completato!',
-        'translated': 'Tradotte',
-        'file_saved': 'File salvato',
-        'select_source_title': 'Seleziona File Sorgente (EN)',
-        'select_translation_title': 'Seleziona File Traduzione',
-        'select_output_title': 'Seleziona File Output',
-        'loading_source': 'Caricamento file sorgente...',
-        'loading_translations': 'Caricamento traduzioni',
-        'processing': 'Processamento',
-        'completed': 'Completato!',
-        'merge_completed_header': 'MERGE COMPLETATO!',
-        'output_file_label': 'File Output:',
-        'statistics': 'STATISTICHE:',
-        'total_rows': 'Totale righe:',
-        'translated_check': 'Tradotte (✓):',
-        'not_translated': 'Non tradotte (✗):',
-        'source_modified': 'Source modificato (⚠):',
-        'legend': 'LEGENDA:',
-        'legend_translated': 'Traduzione esistente applicata (KEY e SOURCE corrispondono)',
-        'legend_not_translated': 'Nessuna traduzione trovata (riga da tradurre)',
-        'legend_modified': 'SOURCE modificato rispetto alla traduzione esistente\n      (richiede verifica/aggiornamento manuale)',
-        'file_saved_success': 'Il file è stato salvato con successo!\n   Puoi aprirlo per verificare e completare le traduzioni mancanti.',
-        'language': 'Lingua:',
+        'title': 'Translation Editor Pro',
+        'menu_file': 'File', 'menu_load_base': 'Carica File Base', 'menu_add_trans': 'Aggiungi Traduzione',
+        'menu_save': 'Salva Output', 'menu_exit': 'Esci', 'menu_view': 'Vista',
+        'menu_theme': 'Cambia Tema', 'menu_lang': 'Lingua', 'menu_help': 'Aiuto', 'menu_about': 'Info',
+        'base_file': '📄 File Base', 'no_file': 'Nessun file', 'load_base_btn': '📂 Carica File Base',
+        'merge_stages': '📚 Stage Merge', 'add_trans_btn': '➕ Aggiungi Traduzione',
+        'execute_merge': '🔄 Esegui Merge', 'undo_last': '↩️ Annulla', 'clear_stages': '🗑️ Pulisci',
+        'save_output': '💾 SALVA OUTPUT', 'search': '🔍 Cerca:', 'filter_added': '🟢 Aggiunte',
+        'filter_removed': '🔴 Rimosse', 'filter_modified': '🟡 Modificate', 'filter_all': '⚪ Tutte',
+        'col_status': 'Stato', 'col_key': 'Chiave', 'col_source': 'Sorgente (EN)', 'col_translation': 'Traduzione',
+        'ready': 'Pronto', 'loaded_rows': 'Caricate: {0} righe', 'added_stage': 'Aggiunto: {0}',
+        'merge_success': '{0} file uniti!', 'saved_success': 'File salvato!\n{0}',
+        'no_data': 'Nessun dato!', 'load_base_first': 'Carica prima file base!',
+        'add_one_file': 'Aggiungi almeno un file!', 'no_history': 'Nessuna cronologia!',
+        'undo_success': 'Annullamento OK', 'stages_cleared': 'Stage puliti',
+        'duplicates_found': 'Duplicati Trovati', 'duplicates_msg': 'Trovati {0} duplicati.\nControlla nella tabella.',
+        'error': 'Errore', 'warning': 'Attenzione', 'success': 'Successo', 'info': 'Info',
+        'about_text': 'Translation Editor Pro v2.0\n\nGestore professionale traduzioni CSV\n\n• UI Moderna\n• Tabella interattiva\n• Merge multi-stage\n• Tracciamento modifiche\n• Multi-lingua',
+        'select_base': 'Seleziona CSV Base', 'select_trans': 'Seleziona CSV Traduzione', 'save_file': 'Salva Output',
     },
     'ru': {
-        'title': 'Инструмент слияния переводов',
-        'description': 'Выберите исходный CSV-файл (английский) и один или несколько файлов с переводами.\nСкрипт сравнит KEY и SOURCE для объединения существующих переводов.',
-        'source_file': 'Исходный файл (EN):',
-        'no_file': 'Файл не выбран',
-        'select_file': 'Выбрать файл',
-        'translation_files': 'Файлы переводов:',
-        'add_file': 'Добавить файл',
-        'remove_selected': 'Удалить выбранное',
-        'remove_all': 'Удалить все',
-        'output_file': 'Выходной файл:',
-        'auto_generated': 'Будет создан автоматически',
-        'choose_output': 'Выбрать выход',
-        'execute_merge': 'ВЫПОЛНИТЬ СЛИЯНИЕ',
-        'results': 'Результаты:',
-        'error': 'Ошибка',
-        'select_source_error': 'Выберите исходный файл!',
-        'select_translation_error': 'Добавьте хотя бы один файл перевода!',
-        'success': 'Успех',
-        'merge_completed': 'Слияние завершено!',
-        'translated': 'Переведено',
-        'file_saved': 'Файл сохранён',
-        'select_source_title': 'Выберите исходный файл (EN)',
-        'select_translation_title': 'Выберите файл перевода',
-        'select_output_title': 'Выберите выходной файл',
-        'loading_source': 'Загрузка исходного файла...',
-        'loading_translations': 'Загрузка переводов',
-        'processing': 'Обработка',
-        'completed': 'Завершено!',
-        'merge_completed_header': 'СЛИЯНИЕ ЗАВЕРШЕНО!',
-        'output_file_label': 'Выходной файл:',
-        'statistics': 'СТАТИСТИКА:',
-        'total_rows': 'Всего строк:',
-        'translated_check': 'Переведено (✓):',
-        'not_translated': 'Не переведено (✗):',
-        'source_modified': 'Источник изменён (⚠):',
-        'legend': 'ЛЕГЕНДА:',
-        'legend_translated': 'Применён существующий перевод (KEY и SOURCE совпадают)',
-        'legend_not_translated': 'Перевод не найден (требуется перевод)',
-        'legend_modified': 'SOURCE изменён по сравнению с существующим переводом\n      (требуется ручная проверка/обновление)',
-        'file_saved_success': 'Файл успешно сохранён!\n   Вы можете открыть его для проверки и завершения недостающих переводов.',
-        'language': 'Язык:',
+        'title': 'Translation Editor Pro',
+        'menu_file': 'Файл', 'menu_load_base': 'Загрузить базу', 'menu_add_trans': 'Добавить перевод',
+        'menu_save': 'Сохранить', 'menu_exit': 'Выход', 'menu_view': 'Вид',
+        'menu_theme': 'Сменить тему', 'menu_lang': 'Язык', 'menu_help': 'Помощь', 'menu_about': 'О программе',
+        'base_file': '📄 Базовый файл', 'no_file': 'Нет файла', 'load_base_btn': '📂 Загрузить базу',
+        'merge_stages': '📚 Этапы слияния', 'add_trans_btn': '➕ Добавить перевод',
+        'execute_merge': '🔄 Объединить', 'undo_last': '↩️ Отменить', 'clear_stages': '🗑️ Очистить',
+        'save_output': '💾 СОХРАНИТЬ', 'search': '🔍 Поиск:', 'filter_added': '🟢 Добавлено',
+        'filter_removed': '🔴 Удалено', 'filter_modified': '🟡 Изменено', 'filter_all': '⚪ Все',
+        'col_status': 'Статус', 'col_key': 'Ключ', 'col_source': 'Источник (EN)', 'col_translation': 'Перевод',
+        'ready': 'Готово', 'loaded_rows': 'Загружено: {0} строк', 'added_stage': 'Добавлен: {0}',
+        'merge_success': 'Объединено {0} файлов!', 'saved_success': 'Файл сохранен!\n{0}',
+        'no_data': 'Нет данных!', 'load_base_first': 'Загрузите базу!',
+        'add_one_file': 'Добавьте файл!', 'no_history': 'Нет истории!',
+        'undo_success': 'Отмена OK', 'stages_cleared': 'Этапы очищены',
+        'duplicates_found': 'Найдены дубликаты', 'duplicates_msg': 'Найдено {0} дубликатов.\nСмотрите в таблице.',
+        'error': 'Ошибка', 'warning': 'Предупреждение', 'success': 'Успех', 'info': 'Информация',
+        'about_text': 'Translation Editor Pro v2.0\n\nПрофессиональный менеджер CSV\n\n• Современный UI\n• Интерактивная таблица\n• Многоэтапное слияние\n• Отслеживание изменений\n• Мультиязычность',
+        'select_base': 'Выбрать базовый CSV', 'select_trans': 'Выбрать CSV перевода', 'save_file': 'Сохранить результат',
     }
 }
 
 
-class TranslationMerger:
-    """Gestisce la logica di merge delle traduzioni"""
+# ==================== DATA CLASSES ====================
+class TranslationData:
+    """Gestisce i dati delle traduzioni"""
     
     def __init__(self):
-        self.source_data: Dict[str, Tuple[str, str]] = {}  # key -> (source, translation)
-        self.translation_data: Dict[str, Tuple[str, str]] = {}  # key -> (source, translation)
+        self.rows: List[Dict[str, str]] = []
+        self.changes: Dict[int, str] = {}
+        self.duplicates: Dict[str, List[int]] = defaultdict(list)
         
-    def load_csv_file(self, filepath: str) -> Dict[str, Tuple[str, str]]:
-        """Carica un file CSV e restituisce un dizionario key -> (source, translation)"""
-        data = {}
-        try:
-            with open(filepath, 'r', encoding='utf-8', newline='') as f:
-                # Prova diverse configurazioni di CSV
-                sample = f.read(4096)
-                f.seek(0)
-                
-                # Determina il delimitatore
-                sniffer = csv.Sniffer()
-                try:
-                    dialect = sniffer.sniff(sample)
-                    delimiter = dialect.delimiter
-                except:
-                    delimiter = ','
-                
-                reader = csv.DictReader(f, delimiter=delimiter)
-                
-                for row in reader:
-                    # Gestisce diverse varianti di nomi colonna
-                    key = row.get('key') or row.get('Key') or row.get('KEY')
-                    source = row.get('source') or row.get('Source') or row.get('SOURCE')
-                    translation = row.get('Translation') or row.get('translation') or row.get('TRANSLATION') or ''
-                    
-                    if key and source is not None:
-                        data[key] = (source, translation)
-                        
-        except Exception as e:
-            raise Exception(f"Errore caricamento file {Path(filepath).name}: {str(e)}")
-            
-        return data
+    def load_from_csv(self, filepath: str):
+        """Carica dati da CSV"""
+        self.rows = []
+        self.changes = {}
+        with open(filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                self.rows.append({
+                    'key': row.get('key', ''),
+                    'source': row.get('source', ''),
+                    'Translation': row.get('Translation', '')
+                })
+        self._detect_duplicates()
     
-    def merge_translations(self, source_file: str, translation_files: List[str], 
-                          progress_callback=None) -> List[Dict[str, str]]:
-        """
-        Merge delle traduzioni.
-        
-        Args:
-            source_file: File CSV sorgente (inglese)
-            translation_files: Lista di file CSV con traduzioni (italiano)
-            progress_callback: Callback per aggiornare la progress bar
-            
-        Returns:
-            Lista di dizionari con le righe del CSV risultante
-        """
-        # Carica il file sorgente
-        if progress_callback:
-            progress_callback(10, "Caricamento file sorgente...")
-        
-        source_data = self.load_csv_file(source_file)
-        total_keys = len(source_data)
-        
-        # Carica tutti i file di traduzione
-        translation_data = {}
-        progress_step = 40 / len(translation_files) if translation_files else 0
-        
-        for idx, trans_file in enumerate(translation_files):
-            if progress_callback:
-                progress_callback(10 + (idx + 1) * progress_step, 
-                                f"Caricamento traduzioni {idx + 1}/{len(translation_files)}...")
-            
-            trans_data = self.load_csv_file(trans_file)
-            
-            # Unisce le traduzioni (l'ultimo file vince in caso di duplicati)
-            for key, (source, translation) in trans_data.items():
-                if key not in translation_data:
-                    translation_data[key] = {}
-                translation_data[key][source] = translation
-        
-        # Processa i merge
-        result = []
-        processed = 0
-        
-        for key, (source, _) in source_data.items():
-            processed += 1
-            
-            if progress_callback and processed % 100 == 0:
-                progress_callback(50 + (processed / total_keys * 50), 
-                                f"Processamento: {processed}/{total_keys}")
-            
-            translation = ''
-            status = 'NON_TRADOTTA'
-            
-            # Cerca traduzione esistente
-            if key in translation_data:
-                trans_dict = translation_data[key]
-                
-                # Cerca traduzione con stesso source
-                if source in trans_dict:
-                    translation = trans_dict[source]
-                    status = 'TRADOTTA'
-                else:
-                    # Source modificato - prende la prima traduzione disponibile come riferimento
-                    if trans_dict:
-                        translation = list(trans_dict.values())[0]
-                        status = 'SOURCE_MODIFICATO'
-            
-            result.append({
-                'key': key,
-                'source': source,
-                'Translation': translation,
-                'status': status
-            })
-        
-        if progress_callback:
-            progress_callback(100, "Completato!")
-        
-        return result
+    def _detect_duplicates(self):
+        """Rileva duplicati KEY+SOURCE"""
+        self.duplicates.clear()
+        for idx, row in enumerate(self.rows):
+            key_source = f"{row['key']}|||{row['source']}"
+            self.duplicates[key_source].append(idx)
+        self.duplicates = {k: v for k, v in self.duplicates.items() if len(v) > 1}
     
-    def save_csv(self, data: List[Dict[str, str]], output_file: str):
-        """Salva i risultati in un file CSV"""
-        with open(output_file, 'w', encoding='utf-8', newline='') as f:
-            fieldnames = ['key', 'source', 'Translation']
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
-            
-            writer.writeheader()
-            writer.writerows(data)
-    
-    def get_statistics(self, data: List[Dict[str, str]]) -> Dict[str, int]:
-        """Calcola statistiche sui risultati"""
-        stats = {
-            'totale': len(data),
-            'tradotte': 0,
-            'non_tradotte': 0,
-            'source_modificato': 0
-        }
-        
-        for row in data:
-            status = row.get('status', 'NON_TRADOTTA')
-            if status == 'TRADOTTA':
-                stats['tradotte'] += 1
-            elif status == 'SOURCE_MODIFICATO':
-                stats['source_modificato'] += 1
-            else:
-                stats['non_tradotte'] += 1
-        
-        return stats
+    def get_change_status(self, idx: int) -> str:
+        return self.changes.get(idx, 'kept')
 
 
-class TranslationMergerGUI:
-    """Interfaccia grafica per il Translation Merger"""
+class MergeStage:
+    """Stage di merge"""
+    
+    def __init__(self, name: str, filepath: str):
+        self.name = name
+        self.filepath = filepath
+        self.timestamp = datetime.now()
+
+
+# ==================== MODERN BUTTON ====================
+class ModernButton(tk.Canvas):
+    """Pulsante moderno con gradiente e bordi arrotondati"""
+    
+    def __init__(self, parent, text="", command=None, bg_color="#0078d4", fg_color="#ffffff", 
+                 width=150, height=40, radius=10, **kwargs):
+        super().__init__(parent, width=width, height=height, bg=parent['bg'], 
+                        highlightthickness=0, **kwargs)
+        
+        self.command = command
+        self.text = text
+        self.bg_color = bg_color
+        self.fg_color = fg_color
+        self.radius = radius
+        self.width = width
+        self.height = height
+        self.is_hovered = False
+        
+        self.draw_button()
+        
+        self.bind("<Button-1>", self.on_click)
+        self.bind("<Enter>", self.on_enter)
+        self.bind("<Leave>", self.on_leave)
+    
+    def draw_button(self):
+        """Disegna pulsante con gradiente"""
+        self.delete("all")
+        
+        # Colore base o hover
+        if self.is_hovered:
+            color = self.lighten_color(self.bg_color)
+        else:
+            color = self.bg_color
+        
+        # Bordi arrotondati
+        self.create_rounded_rect(2, 2, self.width-2, self.height-2, 
+                                self.radius, fill=color, outline="")
+        
+        # Shadow effect
+        shadow_color = self.darken_color(self.bg_color)
+        self.create_rounded_rect(3, 3, self.width-1, self.height-1, 
+                                self.radius, fill="", outline=shadow_color, width=1)
+        
+        # Testo
+        self.create_text(self.width/2, self.height/2, text=self.text, 
+                        fill=self.fg_color, font=("Segoe UI", 10, "bold"))
+    
+    def create_rounded_rect(self, x1, y1, x2, y2, radius, **kwargs):
+        """Crea rettangolo con bordi arrotondati"""
+        points = [
+            x1+radius, y1,
+            x2-radius, y1,
+            x2, y1,
+            x2, y1+radius,
+            x2, y2-radius,
+            x2, y2,
+            x2-radius, y2,
+            x1+radius, y2,
+            x1, y2,
+            x1, y2-radius,
+            x1, y1+radius,
+            x1, y1
+        ]
+        return self.create_polygon(points, smooth=True, **kwargs)
+    
+    def lighten_color(self, color):
+        """Schiarisce colore per hover"""
+        if color.startswith('#'):
+            r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+            r = min(255, r + 30)
+            g = min(255, g + 30)
+            b = min(255, b + 30)
+            return f"#{r:02x}{g:02x}{b:02x}"
+        return color
+    
+    def darken_color(self, color):
+        """Scurisce colore per shadow"""
+        if color.startswith('#'):
+            r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+            r = max(0, r - 40)
+            g = max(0, g - 40)
+            b = max(0, b - 40)
+            return f"#{r:02x}{g:02x}{b:02x}"
+        return color
+    
+    def on_click(self, event):
+        if self.command:
+            self.command()
+    
+    def on_enter(self, event):
+        self.is_hovered = True
+        self.draw_button()
+        self.config(cursor="hand2")
+    
+    def on_leave(self, event):
+        self.is_hovered = False
+        self.draw_button()
+        self.config(cursor="")
+    
+    def configure_text(self, text):
+        """Aggiorna testo"""
+        self.text = text
+        self.draw_button()
+
+
+# ==================== MAIN APPLICATION ====================
+class TranslationEditorPro:
+    """Editor professionale con UI moderna"""
     
     def __init__(self, root):
         self.root = root
-        self.merger = TranslationMerger()
-        self.source_file = None
-        self.translation_files = []
-        self.output_file = None
-        self.current_language = 'it'  # Default language
-        
+        self.current_lang = 'it'
         self.root.title(self.t('title'))
-        self.root.geometry("800x650")
-        self.root.resizable(True, True)
+        self.root.geometry("1600x950")
+        
+        # Dati
+        self.base_data = TranslationData()
+        self.current_data = TranslationData()
+        self.merge_stages: List[MergeStage] = []
+        self.history: List[TranslationData] = []
+        
+        # Tema
+        self.theme = 'dark'
+        self.colors = {
+            'dark': {
+                'bg': '#1a1a1a', 'fg': '#e0e0e0', 'bg2': '#252525', 'bg3': '#2d2d2d',
+                'accent': '#0078d4', 'accent_hover': '#1e90ff',
+                'success': '#10b981', 'warning': '#f59e0b', 'danger': '#ef4444',
+                'added': '#4ade80', 'removed': '#f87171', 'modified': '#fbbf24', 'kept': '#9ca3af',
+            },
+            'light': {
+                'bg': '#f5f5f5', 'fg': '#1a1a1a', 'bg2': '#ffffff', 'bg3': '#e5e5e5',
+                'accent': '#0078d4', 'accent_hover': '#1e90ff',
+                'success': '#059669', 'warning': '#d97706', 'danger': '#dc2626',
+                'added': '#22c55e', 'removed': '#ef4444', 'modified': '#f59e0b', 'kept': '#6b7280',
+            }
+        }
         
         self.setup_ui()
     
-    def t(self, key):
-        """Get translation for current language"""
-        return TRANSLATIONS.get(self.current_language, TRANSLATIONS['en']).get(key, key)
+    def t(self, key: str, *args) -> str:
+        """Traduce chiave"""
+        text = TRANSLATIONS.get(self.current_lang, TRANSLATIONS['en']).get(key, key)
+        return text.format(*args) if args else text
     
-    def change_language(self, lang_code):
-        """Change interface language"""
-        self.current_language = lang_code
-        # Ricostruisce l'interfaccia con la nuova lingua
-        for widget in self.root.winfo_children():
-            widget.destroy()
-        self.setup_ui()
+    def change_language(self, lang: str):
+        """Cambia lingua e aggiorna UI"""
+        self.current_lang = lang
+        self.root.title(self.t('title'))
+        self.refresh_ui_texts()
+    
+    def refresh_ui_texts(self):
+        """Aggiorna tutti i testi UI"""
+        # Labels
+        if not self.base_data.rows:
+            self.base_file_label.config(text=self.t('no_file'))
+        self.status_label.config(text=self.t('ready'))
         
+        # Frames
+        self.base_frame.config(text=self.t('base_file'))
+        self.stages_frame.config(text=self.t('merge_stages'))
+        
+        # Buttons
+        self.load_base_btn.configure_text(self.t('load_base_btn'))
+        self.add_trans_btn.configure_text(self.t('add_trans_btn'))
+        self.execute_merge_btn.configure_text(self.t('execute_merge'))
+        self.undo_btn.configure_text(self.t('undo_last'))
+        self.clear_btn.configure_text(self.t('clear_stages'))
+        self.save_btn.configure_text(self.t('save_output'))
+        
+        # Toolbar
+        self.search_label.config(text=self.t('search'))
+        self.filter_added_btn.configure_text(self.t('filter_added'))
+        self.filter_removed_btn.configure_text(self.t('filter_removed'))
+        self.filter_modified_btn.configure_text(self.t('filter_modified'))
+        self.filter_all_btn.configure_text(self.t('filter_all'))
+        
+        # Table headers
+        self.tree.heading('status', text=self.t('col_status'))
+        self.tree.heading('key', text=self.t('col_key'))
+        self.tree.heading('source', text=self.t('col_source'))
+        self.tree.heading('translation', text=self.t('col_translation'))
+    
     def setup_ui(self):
-        """Configura l'interfaccia utente"""
-        # Frame principale
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        """Setup interfaccia moderna"""
+        c = self.colors[self.theme]
+        self.root.configure(bg=c['bg'])
         
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        # Menu
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
         
-        # Language selector
-        lang_frame = ttk.Frame(main_frame)
-        lang_frame.grid(row=0, column=0, columnspan=3, sticky=tk.E, pady=5)
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label=self.t('menu_file'), menu=file_menu)
+        file_menu.add_command(label=self.t('menu_load_base'), command=self.load_base_file)
+        file_menu.add_command(label=self.t('menu_add_trans'), command=self.add_translation_file)
+        file_menu.add_separator()
+        file_menu.add_command(label=self.t('menu_save'), command=self.save_final_output)
+        file_menu.add_separator()
+        file_menu.add_command(label=self.t('menu_exit'), command=self.root.quit)
         
-        ttk.Label(lang_frame, text=self.t('language')).pack(side=tk.LEFT, padx=5)
+        view_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label=self.t('menu_view'), menu=view_menu)
+        view_menu.add_command(label=self.t('menu_theme'), command=self.toggle_theme)
         
-        lang_var = tk.StringVar(value=self.current_language)
-        lang_combo = ttk.Combobox(lang_frame, textvariable=lang_var, 
-                                  values=['en', 'it', 'ru'], 
-                                  state='readonly', width=10)
-        lang_combo.pack(side=tk.LEFT)
-        lang_combo.bind('<<ComboboxSelected>>', 
-                       lambda e: self.change_language(lang_var.get()))
+        lang_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label=self.t('menu_lang'), menu=lang_menu)
+        lang_menu.add_command(label="🇬🇧 English", command=lambda: self.change_language('en'))
+        lang_menu.add_command(label="🇮🇹 Italiano", command=lambda: self.change_language('it'))
+        lang_menu.add_command(label="🇷🇺 Русский", command=lambda: self.change_language('ru'))
         
-        # Titolo
-        title_label = ttk.Label(main_frame, text=self.t('title'), 
-                               font=('Arial', 16, 'bold'))
-        title_label.grid(row=1, column=0, columnspan=3, pady=10)
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label=self.t('menu_help'), menu=help_menu)
+        help_menu.add_command(label=self.t('menu_about'), command=self.show_about)
         
-        # Descrizione
-        desc_label = ttk.Label(main_frame, text=self.t('description'), 
-                              justify=tk.LEFT, wraplength=750)
-        desc_label.grid(row=2, column=0, columnspan=3, pady=10, sticky=tk.W)
+        # Main container
+        main_frame = tk.Frame(self.root, bg=c['bg'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # Separatore
-        ttk.Separator(main_frame, orient=tk.HORIZONTAL).grid(row=3, column=0, columnspan=3, 
-                                                              sticky=(tk.W, tk.E), pady=10)
+        # LEFT PANEL
+        left_panel = tk.Frame(main_frame, bg=c['bg'], width=340)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, padx=(0, 15))
+        left_panel.pack_propagate(False)
         
-        # File sorgente
-        row = 4
-        ttk.Label(main_frame, text=self.t('source_file'), font=('Arial', 10, 'bold')).grid(
-            row=row, column=0, sticky=tk.W, pady=5)
+        # Base file section
+        self.base_frame = tk.LabelFrame(left_panel, text=self.t('base_file'), 
+                                       bg=c['bg2'], fg=c['fg'], font=("Segoe UI", 10, "bold"),
+                                       padx=15, pady=15)
+        self.base_frame.pack(fill=tk.X, pady=(0, 15))
         
-        self.source_label = ttk.Label(main_frame, text=self.t('no_file'), 
-                                     foreground='gray')
-        self.source_label.grid(row=row, column=1, sticky=tk.W, padx=5)
+        self.base_file_label = tk.Label(self.base_frame, text=self.t('no_file'), 
+                                        bg=c['bg2'], fg='gray', wraplength=280,
+                                        font=("Segoe UI", 9), anchor='w', justify='left')
+        self.base_file_label.pack(fill=tk.X, pady=(0, 12))
         
-        ttk.Button(main_frame, text=self.t('select_file'), 
-                  command=self.select_source_file).grid(row=row, column=2, padx=5)
+        self.load_base_btn = ModernButton(self.base_frame, text=self.t('load_base_btn'),
+                                          command=self.load_base_file, bg_color=c['accent'],
+                                          width=290, height=45, radius=12)
+        self.load_base_btn.pack()
         
-        # File traduzioni
-        row += 1
-        ttk.Label(main_frame, text=self.t('translation_files'), font=('Arial', 10, 'bold')).grid(
-            row=row, column=0, sticky=tk.W, pady=5)
+        # Stages section
+        self.stages_frame = tk.LabelFrame(left_panel, text=self.t('merge_stages'),
+                                         bg=c['bg2'], fg=c['fg'], font=("Segoe UI", 10, "bold"),
+                                         padx=15, pady=15)
+        self.stages_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
         
-        # Lista file traduzioni
-        row += 1
-        list_frame = ttk.Frame(main_frame)
-        list_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
-        list_frame.columnconfigure(0, weight=1)
-        list_frame.rowconfigure(0, weight=1)
+        list_container = tk.Frame(self.stages_frame, bg=c['bg3'], relief=tk.FLAT, bd=0)
+        list_container.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
         
-        self.translation_listbox = tk.Listbox(list_frame, height=6)
-        self.translation_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scroll = tk.Scrollbar(list_container, bg=c['bg3'])
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, 
-                                 command=self.translation_listbox.yview)
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        self.translation_listbox.config(yscrollcommand=scrollbar.set)
+        self.stages_listbox = tk.Listbox(list_container, yscrollcommand=scroll.set,
+                                         bg=c['bg3'], fg=c['fg'], font=("Consolas", 9),
+                                         selectbackground=c['accent'], selectforeground='white',
+                                         relief=tk.FLAT, bd=0, highlightthickness=0)
+        self.stages_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.config(command=self.stages_listbox.yview)
         
-        # Pulsanti per gestire le traduzioni
-        row += 1
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=row, column=0, columnspan=3, pady=5)
+        # Buttons
+        self.add_trans_btn = ModernButton(self.stages_frame, text=self.t('add_trans_btn'),
+                                          command=self.add_translation_file, bg_color=c['success'],
+                                          width=290, height=38, radius=10)
+        self.add_trans_btn.pack(pady=3)
         
-        ttk.Button(button_frame, text=self.t('add_file'), 
-                  command=self.add_translation_file).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text=self.t('remove_selected'), 
-                  command=self.remove_translation_file).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text=self.t('remove_all'), 
-                  command=self.clear_translation_files).pack(side=tk.LEFT, padx=5)
+        self.execute_merge_btn = ModernButton(self.stages_frame, text=self.t('execute_merge'),
+                                              command=self.execute_merge, bg_color=c['accent'],
+                                              width=290, height=38, radius=10)
+        self.execute_merge_btn.pack(pady=3)
         
-        # Separatore
-        row += 1
-        ttk.Separator(main_frame, orient=tk.HORIZONTAL).grid(row=row, column=0, columnspan=3, 
-                                                              sticky=(tk.W, tk.E), pady=10)
+        self.undo_btn = ModernButton(self.stages_frame, text=self.t('undo_last'),
+                                     command=self.undo_last, bg_color=c['warning'],
+                                     width=290, height=38, radius=10)
+        self.undo_btn.pack(pady=3)
         
-        # File di output
-        row += 1
-        ttk.Label(main_frame, text=self.t('output_file'), font=('Arial', 10, 'bold')).grid(
-            row=row, column=0, sticky=tk.W, pady=5)
+        self.clear_btn = ModernButton(self.stages_frame, text=self.t('clear_stages'),
+                                      command=self.clear_stages, bg_color=c['danger'],
+                                      width=290, height=38, radius=10)
+        self.clear_btn.pack(pady=3)
         
-        self.output_label = ttk.Label(main_frame, text=self.t('auto_generated'), 
-                                     foreground='gray')
-        self.output_label.grid(row=row, column=1, sticky=tk.W, padx=5)
+        # SAVE BUTTON - GRANDE E PROMINENTE
+        save_container = tk.Frame(left_panel, bg=c['bg'])
+        save_container.pack(fill=tk.X)
         
-        ttk.Button(main_frame, text=self.t('choose_output'), 
-                  command=self.select_output_file).grid(row=row, column=2, padx=5)
+        self.save_btn = ModernButton(save_container, text=self.t('save_output'),
+                                     command=self.save_final_output, bg_color="#10b981",
+                                     width=310, height=55, radius=15)
+        self.save_btn.pack()
         
-        # Progress bar
-        row += 1
-        self.progress = ttk.Progressbar(main_frame, mode='determinate', length=750)
-        self.progress.grid(row=row, column=0, columnspan=3, pady=10, sticky=(tk.W, tk.E))
+        # RIGHT PANEL
+        right_panel = tk.Frame(main_frame, bg=c['bg'])
+        right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        self.progress_label = ttk.Label(main_frame, text="")
-        row += 1
-        self.progress_label.grid(row=row, column=0, columnspan=3)
+        # Toolbar
+        toolbar = tk.Frame(right_panel, bg=c['bg2'], relief=tk.FLAT, bd=0)
+        toolbar.pack(fill=tk.X, pady=(0, 15), ipady=10, ipadx=10)
         
-        # Pulsante esegui
-        row += 1
-        self.execute_button = ttk.Button(main_frame, text=self.t('execute_merge'), 
-                                        command=self.execute_merge, 
-                                        style='Accent.TButton')
-        self.execute_button.grid(row=row, column=0, columnspan=3, pady=20)
+        self.search_label = tk.Label(toolbar, text=self.t('search'), bg=c['bg2'], fg=c['fg'],
+                                     font=("Segoe UI", 10))
+        self.search_label.pack(side=tk.LEFT, padx=(5, 8))
         
-        # Area risultati
-        row += 1
-        ttk.Label(main_frame, text=self.t('results'), font=('Arial', 10, 'bold')).grid(
-            row=row, column=0, sticky=tk.W, pady=5)
+        search_entry_frame = tk.Frame(toolbar, bg='white', relief=tk.FLAT, bd=1)
+        search_entry_frame.pack(side=tk.LEFT, padx=(0, 25))
         
-        row += 1
-        self.result_text = tk.Text(main_frame, height=8, width=90, state='disabled')
-        self.result_text.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E))
+        self.search_var = tk.StringVar()
+        self.search_var.trace('w', lambda *args: self.on_search())
+        search_entry = tk.Entry(search_entry_frame, textvariable=self.search_var, width=35,
+                               font=("Segoe UI", 10), relief=tk.FLAT, bd=0)
+        search_entry.pack(padx=8, pady=6)
         
-        result_scroll = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, 
-                                     command=self.result_text.yview)
-        result_scroll.grid(row=row, column=3, sticky=(tk.N, tk.S))
-        self.result_text.config(yscrollcommand=result_scroll.set)
+        # Filter buttons
+        self.filter_added_btn = ModernButton(toolbar, text=self.t('filter_added'),
+                                            command=lambda: self.filter_by('added'),
+                                            bg_color=c['added'], width=110, height=35, radius=8)
+        self.filter_added_btn.pack(side=tk.LEFT, padx=3)
         
-        # Configura peso delle righe per resize
-        main_frame.rowconfigure(6, weight=1)
-        main_frame.rowconfigure(row, weight=1)
+        self.filter_removed_btn = ModernButton(toolbar, text=self.t('filter_removed'),
+                                              command=lambda: self.filter_by('removed'),
+                                              bg_color=c['removed'], width=110, height=35, radius=8)
+        self.filter_removed_btn.pack(side=tk.LEFT, padx=3)
         
-    def select_source_file(self):
-        """Seleziona il file sorgente"""
-        filename = filedialog.askopenfilename(
-            title=self.t('select_source_title'),
+        self.filter_modified_btn = ModernButton(toolbar, text=self.t('filter_modified'),
+                                               command=lambda: self.filter_by('modified'),
+                                               bg_color=c['modified'], width=110, height=35, radius=8)
+        self.filter_modified_btn.pack(side=tk.LEFT, padx=3)
+        
+        self.filter_all_btn = ModernButton(toolbar, text=self.t('filter_all'),
+                                          command=lambda: self.filter_by('all'),
+                                          bg_color=c['kept'], width=90, height=35, radius=8)
+        self.filter_all_btn.pack(side=tk.LEFT, padx=3)
+        
+        # Table
+        table_container = tk.Frame(right_panel, bg=c['bg3'], relief=tk.FLAT, bd=0)
+        table_container.pack(fill=tk.BOTH, expand=True)
+        
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("Treeview", background=c['bg2'], foreground=c['fg'],
+                       fieldbackground=c['bg2'], borderwidth=0, font=("Consolas", 9))
+        style.configure("Treeview.Heading", background=c['bg3'], foreground=c['fg'],
+                       borderwidth=1, font=("Segoe UI", 10, "bold"))
+        style.map("Treeview", background=[('selected', c['accent'])],
+                 foreground=[('selected', 'white')])
+        
+        vsb = ttk.Scrollbar(table_container, orient="vertical")
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        hsb = ttk.Scrollbar(table_container, orient="horizontal")
+        hsb.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        columns = ('status', 'key', 'source', 'translation')
+        self.tree = ttk.Treeview(table_container, columns=columns, show='headings',
+                                yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        
+        self.tree.heading('status', text=self.t('col_status'))
+        self.tree.heading('key', text=self.t('col_key'))
+        self.tree.heading('source', text=self.t('col_source'))
+        self.tree.heading('translation', text=self.t('col_translation'))
+        
+        self.tree.column('status', width=120, minwidth=100, stretch=False)
+        self.tree.column('key', width=280, minwidth=100)
+        self.tree.column('source', width=480, minwidth=150)
+        self.tree.column('translation', width=480, minwidth=150)
+        
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        vsb.config(command=self.tree.yview)
+        hsb.config(command=self.tree.xview)
+        
+        # Status bar
+        status_bar = tk.Frame(right_panel, bg=c['bg2'], relief=tk.FLAT, bd=0)
+        status_bar.pack(fill=tk.X, pady=(15, 0), ipady=8, ipadx=10)
+        
+        self.status_label = tk.Label(status_bar, text=self.t('ready'), bg=c['bg2'], fg=c['fg'],
+                                     font=("Segoe UI", 9), anchor='w')
+        self.status_label.pack(side=tk.LEFT, padx=5)
+        
+        self.stats_label = tk.Label(status_bar, text="", bg=c['bg2'], fg=c['fg'],
+                                    font=("Segoe UI", 9, "bold"), anchor='e')
+        self.stats_label.pack(side=tk.RIGHT, padx=5)
+    
+    def load_base_file(self):
+        """Carica file base"""
+        filepath = filedialog.askopenfilename(
+            title=self.t('select_base'),
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
         
-        if filename:
-            self.source_file = filename
-            self.source_label.config(text=Path(filename).name, foreground='black')
-            
-    def add_translation_file(self):
-        """Aggiunge un file di traduzione"""
-        filenames = filedialog.askopenfilenames(
-            title=self.t('select_translation_title'),
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-        )
-        
-        for filename in filenames:
-            if filename not in self.translation_files:
-                self.translation_files.append(filename)
-                self.translation_listbox.insert(tk.END, Path(filename).name)
+        if filepath:
+            try:
+                self.base_data = TranslationData()
+                self.base_data.load_from_csv(filepath)
+                self.current_data = copy.deepcopy(self.base_data)
+                self.history = []
                 
-    def remove_translation_file(self):
-        """Rimuove il file di traduzione selezionato"""
-        selection = self.translation_listbox.curselection()
-        if selection:
-            index = selection[0]
-            self.translation_listbox.delete(index)
-            self.translation_files.pop(index)
-            
-    def clear_translation_files(self):
-        """Rimuove tutti i file di traduzione"""
-        self.translation_listbox.delete(0, tk.END)
-        self.translation_files.clear()
+                c = self.colors[self.theme]
+                self.base_file_label.config(text=Path(filepath).name, fg=c['success'])
+                self.refresh_table()
+                self.status_label.config(text=self.t('loaded_rows', len(self.base_data.rows)))
+                
+                if self.base_data.duplicates:
+                    messagebox.showwarning(
+                        self.t('duplicates_found'),
+                        self.t('duplicates_msg', len(self.base_data.duplicates))
+                    )
+            except Exception as e:
+                messagebox.showerror(self.t('error'), f"Failed to load:\n{str(e)}")
+    
+    def add_translation_file(self):
+        """Aggiungi file traduzione"""
+        filepath = filedialog.askopenfilename(
+            title=self.t('select_trans'),
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
         
-    def select_output_file(self):
-        """Seleziona il file di output"""
-        filename = filedialog.asksaveasfilename(
-            title=self.t('select_output_title'),
+        if filepath:
+            name = f"Stage {len(self.merge_stages) + 1}: {Path(filepath).name}"
+            stage = MergeStage(name, filepath)
+            self.merge_stages.append(stage)
+            self.stages_listbox.insert(tk.END, name)
+            self.status_label.config(text=self.t('added_stage', Path(filepath).name))
+    
+    def execute_merge(self):
+        """Esegui merge"""
+        if not self.base_data.rows:
+            messagebox.showwarning(self.t('warning'), self.t('load_base_first'))
+            return
+        
+        if not self.merge_stages:
+            messagebox.showwarning(self.t('warning'), self.t('add_one_file'))
+            return
+        
+        self.history.append(copy.deepcopy(self.current_data))
+        
+        for stage in self.merge_stages:
+            self.merge_translation_file(stage)
+        
+        self.refresh_table()
+        self.update_statistics()
+        messagebox.showinfo(self.t('success'), self.t('merge_success', len(self.merge_stages)))
+    
+    def merge_translation_file(self, stage: MergeStage):
+        """Merge singolo file"""
+        trans_data = TranslationData()
+        trans_data.load_from_csv(stage.filepath)
+        
+        trans_lookup = {}
+        for row in trans_data.rows:
+            key_source = f"{row['key']}|||{row['source']}"
+            trans_lookup[key_source] = row['Translation']
+        
+        for idx, row in enumerate(self.current_data.rows):
+            key_source = f"{row['key']}|||{row['source']}"
+            
+            if key_source in trans_lookup:
+                new_trans = trans_lookup[key_source]
+                old_trans = row['Translation']
+                
+                if old_trans != new_trans:
+                    if old_trans == '' and new_trans != '':
+                        self.current_data.changes[idx] = 'added'
+                    elif old_trans != '' and new_trans == '':
+                        self.current_data.changes[idx] = 'removed'
+                    else:
+                        self.current_data.changes[idx] = 'modified'
+                    
+                    row['Translation'] = new_trans
+    
+    def refresh_table(self):
+        """Aggiorna tabella"""
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        c = self.colors[self.theme]
+        icons = {'added': '🟢', 'removed': '🔴', 'modified': '🟡', 'kept': '⚪'}
+        
+        for idx, row in enumerate(self.current_data.rows):
+            status = self.current_data.get_change_status(idx)
+            status_text = f"{icons.get(status, '⚪')} {status}"
+            
+            item = self.tree.insert('', tk.END, values=(
+                status_text,
+                row['key'][:50] + '...' if len(row['key']) > 50 else row['key'],
+                row['source'][:100] + '...' if len(row['source']) > 100 else row['source'],
+                row['Translation'][:100] + '...' if len(row['Translation']) > 100 else row['Translation']
+            ))
+            
+            if status in c:
+                self.tree.tag_configure(status, foreground=c[status])
+                self.tree.item(item, tags=(status,))
+    
+    def update_statistics(self):
+        """Aggiorna statistiche"""
+        total = len(self.current_data.rows)
+        added = sum(1 for s in self.current_data.changes.values() if s == 'added')
+        removed = sum(1 for s in self.current_data.changes.values() if s == 'removed')
+        modified = sum(1 for s in self.current_data.changes.values() if s == 'modified')
+        
+        self.stats_label.config(text=f"Total: {total} | 🟢 {added} | 🔴 {removed} | 🟡 {modified}")
+    
+    def save_final_output(self):
+        """Salva output finale"""
+        if not self.current_data.rows:
+            messagebox.showwarning(self.t('warning'), self.t('no_data'))
+            return
+        
+        filepath = filedialog.asksaveasfilename(
+            title=self.t('save_file'),
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
         
-        if filename:
-            self.output_file = filename
-            self.output_label.config(text=Path(filename).name, foreground='black')
-            
-    def update_progress(self, value, message):
-        """Aggiorna la progress bar"""
-        self.progress['value'] = value
-        self.progress_label.config(text=message)
-        self.root.update_idletasks()
-        
-    def execute_merge(self):
-        """Esegue il merge delle traduzioni"""
-        # Validazione
-        if not self.source_file:
-            messagebox.showerror(self.t('error'), self.t('select_source_error'))
+        if filepath:
+            try:
+                with open(filepath, 'w', encoding='utf-8', newline='') as f:
+                    writer = csv.DictWriter(f, fieldnames=['key', 'source', 'Translation'])
+                    writer.writeheader()
+                    writer.writerows(self.current_data.rows)
+                
+                messagebox.showinfo(self.t('success'), self.t('saved_success', filepath))
+                self.status_label.config(text=f"Saved: {Path(filepath).name}")
+            except Exception as e:
+                messagebox.showerror(self.t('error'), f"Save failed:\n{str(e)}")
+    
+    def undo_last(self):
+        """Annulla ultimo merge"""
+        if self.history:
+            self.current_data = self.history.pop()
+            self.refresh_table()
+            self.update_statistics()
+            self.status_label.config(text=self.t('undo_success'))
+        else:
+            messagebox.showinfo(self.t('info'), self.t('no_history'))
+    
+    def clear_stages(self):
+        """Pulisci stage"""
+        self.merge_stages.clear()
+        self.stages_listbox.delete(0, tk.END)
+        self.status_label.config(text=self.t('stages_cleared'))
+    
+    def toggle_theme(self):
+        """Cambia tema"""
+        self.theme = 'light' if self.theme == 'dark' else 'dark'
+        # Riavvia UI per applicare tema
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        self.setup_ui()
+        if self.current_data.rows:
+            self.refresh_table()
+    
+    def on_search(self):
+        """Cerca nella tabella"""
+        search = self.search_var.get().lower()
+        if not search:
+            self.refresh_table()
             return
-            
-        if not self.translation_files:
-            messagebox.showerror(self.t('error'), self.t('select_translation_error'))
-            return
         
-        # Genera nome output se non specificato
-        if not self.output_file:
-            source_path = Path(self.source_file)
-            self.output_file = str(source_path.parent / f"{source_path.stem}_merged.csv")
-            self.output_label.config(text=Path(self.output_file).name, foreground='black')
+        for item in self.tree.get_children():
+            self.tree.delete(item)
         
-        # Disabilita il pulsante durante l'esecuzione
-        self.execute_button.config(state='disabled')
-        self.result_text.config(state='normal')
-        self.result_text.delete(1.0, tk.END)
-        self.result_text.config(state='disabled')
+        icons = {'added': '🟢', 'removed': '🔴', 'modified': '🟡', 'kept': '⚪'}
         
-        # Esegue in un thread separato per non bloccare la UI
-        thread = threading.Thread(target=self._execute_merge_thread)
-        thread.daemon = True
-        thread.start()
+        for idx, row in enumerate(self.current_data.rows):
+            if (search in row['key'].lower() or
+                search in row['source'].lower() or
+                search in row['Translation'].lower()):
+                
+                status = self.current_data.get_change_status(idx)
+                self.tree.insert('', tk.END, values=(
+                    f"{icons[status]} {status}",
+                    row['key'][:50] + '...' if len(row['key']) > 50 else row['key'],
+                    row['source'][:100] + '...' if len(row['source']) > 100 else row['source'],
+                    row['Translation'][:100] + '...' if len(row['Translation']) > 100 else row['Translation']
+                ))
+    
+    def filter_by(self, filter_status: str):
+        """Filtra per stato"""
+        for item in self.tree.get_children():
+            self.tree.delete(item)
         
-    def _execute_merge_thread(self):
-        """Thread worker per il merge"""
-        try:
-            # Esegue il merge
-            result_data = self.merger.merge_translations(
-                self.source_file,
-                self.translation_files,
-                self.update_progress
-            )
-            
-            # Salva il risultato
-            self.merger.save_csv(result_data, self.output_file)
-            
-            # Calcola statistiche
-            stats = self.merger.get_statistics(result_data)
-            
-            # Mostra risultati
-            self.root.after(0, self._show_results, stats, self.output_file)
-            
-        except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Errore", str(e)))
-        finally:
-            self.root.after(0, lambda: self.execute_button.config(state='normal'))
-            
-    def _show_results(self, stats, output_file):
-        """Mostra i risultati nell'interfaccia"""
-        result_text = f"""
-╔══════════════════════════════════════════════════════════════╗
-║           {self.t('merge_completed_header').center(54)}           ║
-╚══════════════════════════════════════════════════════════════╝
-
-📄 {self.t('output_file_label')} {Path(output_file).name}
-
-📊 {self.t('statistics')}
-   • {self.t('total_rows')}              {stats['totale']:>6}
-   • {self.t('translated_check')}              {stats['tradotte']:>6}  ({stats['tradotte']/stats['totale']*100:.1f}%)
-   • {self.t('not_translated')}          {stats['non_tradotte']:>6}  ({stats['non_tradotte']/stats['totale']*100:.1f}%)
-   • {self.t('source_modified')}     {stats['source_modificato']:>6}  ({stats['source_modificato']/stats['totale']*100:.1f}%)
-
-💡 {self.t('legend')}
-   ✓  {self.t('legend_translated')}
-   ✗  {self.t('legend_not_translated')}
-   ⚠  {self.t('legend_modified')}
-
-✅ {self.t('file_saved_success')}
-"""
+        icons = {'added': '🟢', 'removed': '🔴', 'modified': '🟡', 'kept': '⚪'}
         
-        self.result_text.config(state='normal')
-        self.result_text.delete(1.0, tk.END)
-        self.result_text.insert(1.0, result_text)
-        self.result_text.config(state='disabled')
-        
-        messagebox.showinfo(self.t('success'), 
-                           f"{self.t('merge_completed')}\n\n"
-                           f"{self.t('translated')}: {stats['tradotte']}/{stats['totale']}\n"
-                           f"{self.t('file_saved')}: {Path(output_file).name}")
-
-
-def main():
-    """Entry point dell'applicazione"""
-    root = tk.Tk()
-    TranslationMergerGUI(root)
-    root.mainloop()
+        for idx, row in enumerate(self.current_data.rows):
+            status = self.current_data.get_change_status(idx)
+            
+            if filter_status == 'all' or status == filter_status:
+                self.tree.insert('', tk.END, values=(
+                    f"{icons[status]} {status}",
+                    row['key'][:50] + '...' if len(row['key']) > 50 else row['key'],
+                    row['source'][:100] + '...' if len(row['source']) > 100 else row['source'],
+                    row['Translation'][:100] + '...' if len(row['Translation']) > 100 else row['Translation']
+                ))
+    
+    def show_about(self):
+        """Mostra info"""
+        messagebox.showinfo(self.t('menu_about'), self.t('about_text'))
 
 
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    app = TranslationEditorPro(root)
+    root.mainloop()
