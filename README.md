@@ -10,8 +10,6 @@
 
 ## 🇮🇹 Italiano
 
-## 🇮🇹 Italiano
-
 ### 📖 Descrizione
 
 **Translation Editor Pro** è un editor grafico professionale per gestire file CSV di traduzioni con interfaccia moderna, pulsanti arrotondati e sistema di merge multi-stage.
@@ -362,3 +360,4 @@ MENU_EXIT,Exit,Выход
 **Версия / Version / Versione:** 2.0.0 | **Дата / Date / Data:** 10 ноября / November / novembre 2025
 
 </div>
+
